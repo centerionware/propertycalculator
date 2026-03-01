@@ -13,7 +13,8 @@ import {
   ArrowUpRight,
   Info,
   Briefcase,
-  PieChart
+  PieChart,
+  AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -67,6 +68,7 @@ export default function App() {
   const [mortgageAmount, setMortgageAmount] = useState('');
   const [mortgageTerm, setMortgageTerm] = useState('30'); // Default 30 years
   const [mortgageMonthlyPayment, setMortgageMonthlyPayment] = useState('');
+  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
 
   const selectedProperty = useMemo(() => 
     properties.find(p => p.id === selectedPropertyId), 
@@ -208,8 +210,17 @@ export default function App() {
   };
 
   const deleteProperty = (id: string) => {
-    setProperties(properties.filter(p => p.id !== id));
-    if (selectedPropertyId === id) setSelectedPropertyId(null);
+    const property = properties.find(p => p.id === id);
+    if (!property) return;
+    setPropertyToDelete(property);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (propertyToDelete) {
+      setProperties(properties.filter(p => p.id !== propertyToDelete.id));
+      if (selectedPropertyId === propertyToDelete.id) setSelectedPropertyId(null);
+      setPropertyToDelete(null);
+    }
   };
 
   const suggestedRents = useMemo(() => {
@@ -446,7 +457,7 @@ export default function App() {
                           e.stopPropagation();
                           deleteProperty(prop.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-zinc-400 hover:text-red-500 transition-all"
+                        className="p-2 text-zinc-400 hover:text-red-500 transition-all"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -826,6 +837,7 @@ export default function App() {
                                 <th className="px-6 py-4">Investment</th>
                                 <th className="px-6 py-4">Monthly Net</th>
                                 <th className="px-6 py-4">ROI</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100">
@@ -845,11 +857,20 @@ export default function App() {
                                 const roi = (annualPostTaxNetIncome / totalInitialInvestment) * 100;
 
                                 return (
-                                  <tr key={prop.id} className="hover:bg-zinc-50 transition-colors">
+                                  <tr key={prop.id} className="hover:bg-zinc-50 transition-colors group">
                                     <td className="px-6 py-4 font-medium text-zinc-900">{prop.address}</td>
                                     <td className="px-6 py-4 text-zinc-600">{formatCurrency(totalInitialInvestment)}</td>
                                     <td className="px-6 py-4 text-emerald-600 font-bold">{formatCurrency(annualPostTaxNetIncome / 12)}</td>
                                     <td className="px-6 py-4 text-emerald-600 font-bold">{roi.toFixed(1)}%</td>
+                                    <td className="px-6 py-4 text-right">
+                                      <button 
+                                        onClick={() => deleteProperty(prop.id)}
+                                        className="p-2 text-zinc-400 hover:text-red-500 transition-all"
+                                        title="Remove from portfolio"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </td>
                                   </tr>
                                 );
                               })}
@@ -909,12 +930,20 @@ export default function App() {
                         <ArrowUpRight className="w-6 h-6 text-zinc-400" />
                         Financial Breakdown
                       </h2>
-                      <button 
-                        onClick={() => handleEditProperty(selectedProperty)}
-                        className="text-sm font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-                      >
-                        Edit Details
-                      </button>
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => handleEditProperty(selectedProperty)}
+                          className="text-sm font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                        >
+                          Edit Details
+                        </button>
+                        <button 
+                          onClick={() => deleteProperty(selectedProperty.id)}
+                          className="text-sm font-medium text-red-500 hover:text-red-600 flex items-center gap-1"
+                        >
+                          Delete Property
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="space-y-4">
@@ -1141,6 +1170,51 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Overlay */}
+      <AnimatePresence>
+        {propertyToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setPropertyToDelete(null)}
+              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6 mx-auto">
+                  <AlertTriangle className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 text-center mb-2">Delete Property?</h3>
+                <p className="text-zinc-500 text-center mb-8">
+                  Are you sure you want to remove <span className="font-semibold text-zinc-900">"{propertyToDelete.address}"</span>? This action cannot be undone and all associated data will be lost.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleDeleteConfirm}
+                    className="w-full py-4 bg-red-500 text-white font-bold rounded-2xl hover:bg-red-600 transition-colors shadow-lg shadow-red-100"
+                  >
+                    Yes, Delete Property
+                  </button>
+                  <button
+                    onClick={() => setPropertyToDelete(null)}
+                    className="w-full py-4 bg-zinc-100 text-zinc-600 font-bold rounded-2xl hover:bg-zinc-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
