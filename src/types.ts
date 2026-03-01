@@ -1,5 +1,13 @@
+export enum InvestmentType {
+  REAL_ESTATE = 'REAL_ESTATE',
+  BUSINESS = 'BUSINESS',
+  VEHICLE = 'VEHICLE',
+  EQUIPMENT = 'EQUIPMENT'
+}
+
 export interface Property {
   id: string;
+  type: InvestmentType;
   address: string;
   askingPrice: number;
   monthlyRent: number;

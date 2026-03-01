@@ -14,7 +14,9 @@ import {
   Info,
   Briefcase,
   PieChart,
-  AlertTriangle
+  AlertTriangle,
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -30,7 +32,7 @@ import {
 } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Property, FinancialBreakdown } from './types';
+import { Property, FinancialBreakdown, InvestmentType } from './types';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,6 +41,102 @@ function cn(...inputs: ClassValue[]) {
 const INFLATION_RATE = 0.03;
 const MAINTENANCE_RESERVE_PERCENT = 0.01; // 1% of property value annually
 
+const LABEL_MAP: Record<InvestmentType, Record<string, string>> = {
+  [InvestmentType.REAL_ESTATE]: {
+    type: 'Real Estate',
+    address: 'Property Address',
+    askingPrice: 'Asking Price',
+    monthlyRent: 'Monthly Rent',
+    initialRepairs: 'Initial Repairs',
+    lotRent: 'Lot Rent',
+    hoaFee: 'HOA Fee',
+    propertyTax: 'Property Tax',
+    isManaged: 'Managed by Company',
+    mortgage: 'Mortgage',
+    loanAmount: 'Mortgage Amount',
+    loanTerm: 'Mortgage Term',
+    loanPayment: 'Monthly Payment',
+    utilities: 'Utilities',
+    amenities: 'Amenities',
+    recoup: 'Recoupment Timeline',
+    revenue: 'Monthly Rent (Year 1)',
+    setup: 'Initial Repairs',
+    overhead: 'Operating Expenses',
+    tax: 'Property Tax',
+  },
+  [InvestmentType.BUSINESS]: {
+    type: 'Business/Equipment',
+    address: 'Business Name/Location',
+    askingPrice: 'Purchase Price',
+    monthlyRent: 'Monthly Revenue',
+    initialRepairs: 'Setup Costs',
+    lotRent: 'Space Lease',
+    hoaFee: 'Association Fee',
+    propertyTax: 'Business Tax',
+    isManaged: 'Outsourced Management',
+    mortgage: 'Business Loan',
+    loanAmount: 'Loan Amount',
+    loanTerm: 'Loan Term',
+    loanPayment: 'Monthly Payment',
+    utilities: 'Operating Costs',
+    amenities: 'Equipment/Features',
+    recoup: 'ROI Timeline',
+    revenue: 'Monthly Revenue (Year 1)',
+    setup: 'Setup Costs',
+    overhead: 'Overhead Costs',
+    tax: 'Business Tax',
+  },
+  [InvestmentType.VEHICLE]: {
+    type: 'Vehicle/Route',
+    address: 'Vehicle/Route Name',
+    askingPrice: 'Purchase Price',
+    monthlyRent: 'Monthly Earnings',
+    initialRepairs: 'Initial Maintenance',
+    lotRent: 'Parking/Storage',
+    hoaFee: 'Permit Fees',
+    propertyTax: 'Vehicle Tax',
+    isManaged: 'Fleet Management',
+    mortgage: 'Vehicle Loan',
+    loanAmount: 'Loan Amount',
+    loanTerm: 'Loan Term',
+    loanPayment: 'Monthly Payment',
+    utilities: 'Fuel & Maintenance',
+    amenities: 'Upgrades/Specs',
+    recoup: 'Payback Period',
+    revenue: 'Monthly Earnings (Year 1)',
+    setup: 'Initial Maintenance',
+    overhead: 'Operating Costs',
+    tax: 'Vehicle Tax',
+  },
+  [InvestmentType.EQUIPMENT]: {
+    type: 'Specialized Equipment',
+    address: 'Equipment Name',
+    askingPrice: 'Unit Cost',
+    monthlyRent: 'Monthly Income',
+    initialRepairs: 'Installation Costs',
+    lotRent: 'Storage Cost',
+    hoaFee: 'Insurance',
+    propertyTax: 'Usage Tax',
+    isManaged: 'Service Contract',
+    mortgage: 'Equipment Lease/Loan',
+    loanAmount: 'Amount Financed',
+    loanTerm: 'Lease Term',
+    loanPayment: 'Monthly Payment',
+    utilities: 'Power & Consumables',
+    amenities: 'Features/Options',
+    recoup: 'Break-even Timeline',
+    revenue: 'Monthly Income (Year 1)',
+    setup: 'Installation Costs',
+    overhead: 'Running Costs',
+    tax: 'Usage Tax',
+  }
+};
+
+const getLabel = (type: InvestmentType | undefined, key: string) => {
+  const t = type || InvestmentType.REAL_ESTATE;
+  return LABEL_MAP[t][key] || LABEL_MAP[InvestmentType.REAL_ESTATE][key] || key;
+};
+
 export default function App() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
@@ -46,6 +144,19 @@ export default function App() {
   const [editingPropertyId, setEditingPropertyId] = useState<string | null>(null);
   const [activeRentOverride, setActiveRentOverride] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'properties' | 'portfolio'>('properties');
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+
+  useEffect(() => {
+    const accepted = localStorage.getItem('propcalc_disclaimer_accepted');
+    if (!accepted) {
+      setShowDisclaimer(true);
+    }
+  }, []);
+
+  const acceptDisclaimer = () => {
+    localStorage.setItem('propcalc_disclaimer_accepted', 'true');
+    setShowDisclaimer(false);
+  };
 
   // Form State
   const [address, setAddress] = useState('');
@@ -68,6 +179,7 @@ export default function App() {
   const [mortgageAmount, setMortgageAmount] = useState('');
   const [mortgageTerm, setMortgageTerm] = useState('30'); // Default 30 years
   const [mortgageMonthlyPayment, setMortgageMonthlyPayment] = useState('');
+  const [investmentType, setInvestmentType] = useState<InvestmentType>(InvestmentType.REAL_ESTATE);
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
 
   const selectedProperty = useMemo(() => 
@@ -118,6 +230,7 @@ export default function App() {
   const handleAddProperty = (e: React.FormEvent) => {
     e.preventDefault();
     const propertyData = {
+      type: investmentType,
       address,
       askingPrice: Number(askingPrice),
       monthlyRent: Number(monthlyRent),
@@ -162,6 +275,7 @@ export default function App() {
 
   const handleEditProperty = (prop: Property) => {
     setEditingPropertyId(prop.id);
+    setInvestmentType(prop.type || InvestmentType.REAL_ESTATE);
     setAddress(prop.address);
     setAskingPrice(prop.askingPrice.toString());
     setMonthlyRent(prop.monthlyRent.toString());
@@ -206,6 +320,7 @@ export default function App() {
     setMortgageAmount('');
     setMortgageTerm('30');
     setMortgageMonthlyPayment('');
+    setInvestmentType(InvestmentType.REAL_ESTATE);
     setEditingPropertyId(null);
   };
 
@@ -418,7 +533,7 @@ export default function App() {
           <div className="lg:col-span-4 space-y-4">
             <div className="flex items-center gap-2 text-zinc-400 font-medium text-sm uppercase tracking-wider px-2">
               <History className="w-4 h-4" />
-              Your Portfolio
+              Your Investments
             </div>
             
             <div className="space-y-3">
@@ -480,7 +595,7 @@ export default function App() {
                   className="glass-card p-8"
                 >
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold">{editingPropertyId ? 'Edit Property' : 'Add New Property'}</h2>
+                    <h2 className="text-xl font-bold">{editingPropertyId ? `Edit ${getLabel(investmentType, 'type')}` : `Add New ${getLabel(investmentType, 'type')}`}</h2>
                     <button onClick={() => {
                       setIsAdding(false);
                       setEditingPropertyId(null);
@@ -490,19 +605,40 @@ export default function App() {
                   
                   <form onSubmit={handleAddProperty} className="space-y-6">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700">Property Address</label>
+                      <label className="text-sm font-medium text-zinc-700">Investment Type</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {Object.values(InvestmentType).map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setInvestmentType(type)}
+                            className={cn(
+                              "px-3 py-2 rounded-xl border text-xs font-bold transition-all",
+                              investmentType === type
+                                ? "bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-100"
+                                : "bg-white border-zinc-200 text-zinc-600 hover:border-emerald-200 hover:bg-emerald-50"
+                            )}
+                          >
+                            {LABEL_MAP[type].type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'address')}</label>
                       <input 
                         required
                         value={address}
                         onChange={e => setAddress(e.target.value)}
-                        placeholder="123 Investment Way, City, State"
+                        placeholder={investmentType === InvestmentType.REAL_ESTATE ? "123 Investment Way, City, State" : "e.g. Food Trailer #1"}
                         className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-700">Asking Price ($)</label>
+                        <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'askingPrice')} ($)</label>
                         <input 
                           required
                           type="number"
@@ -513,7 +649,7 @@ export default function App() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-700">Monthly Rent ($)</label>
+                        <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'monthlyRent')} ($)</label>
                         <input 
                           required
                           type="number"
@@ -527,7 +663,7 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-700">Lot Rent ($/mo) <span className="text-zinc-400 font-normal">(Optional)</span></label>
+                        <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'lotRent')} ($/mo) <span className="text-zinc-400 font-normal">(Optional)</span></label>
                         <input 
                           type="number"
                           value={lotRent}
@@ -537,7 +673,7 @@ export default function App() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-700">HOA Fee ($/mo) <span className="text-zinc-400 font-normal">(Optional)</span></label>
+                        <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'hoaFee')} ($/mo) <span className="text-zinc-400 font-normal">(Optional)</span></label>
                         <input 
                           type="number"
                           value={hoaFee}
@@ -549,7 +685,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700">Initial Repairs Needed ($) <span className="text-zinc-400 font-normal">(Optional)</span></label>
+                      <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'initialRepairs')} ($) <span className="text-zinc-400 font-normal">(Optional)</span></label>
                       <input 
                         type="number"
                         value={initialRepairs}
@@ -561,7 +697,7 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-zinc-700">Annual Property Tax ($)</label>
+                        <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'propertyTax')} ($)</label>
                         <input 
                           type="number"
                           value={propertyTax}
@@ -605,18 +741,20 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                      <input 
-                        type="checkbox"
-                        id="is55Plus"
-                        checked={is55Plus}
-                        onChange={e => setIs55Plus(e.target.checked)}
-                        className="w-5 h-5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <label htmlFor="is55Plus" className="text-sm font-medium text-zinc-700 cursor-pointer">
-                        This is a 55+ Community property
-                      </label>
-                    </div>
+                    {investmentType === InvestmentType.REAL_ESTATE && (
+                      <div className="flex items-center gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                        <input 
+                          type="checkbox"
+                          id="is55Plus"
+                          checked={is55Plus}
+                          onChange={e => setIs55Plus(e.target.checked)}
+                          className="w-5 h-5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <label htmlFor="is55Plus" className="text-sm font-medium text-zinc-700 cursor-pointer">
+                          This is a 55+ Community property
+                        </label>
+                      </div>
+                    )}
 
                     <div className="space-y-4 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                       <div className="flex items-center gap-3">
@@ -628,7 +766,7 @@ export default function App() {
                           className="w-5 h-5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
                         />
                         <label htmlFor="isManaged" className="text-sm font-medium text-zinc-700 cursor-pointer">
-                          Managed by a property management company
+                          {getLabel(investmentType, 'isManaged')}
                         </label>
                       </div>
                       
@@ -657,14 +795,14 @@ export default function App() {
                           className="w-5 h-5 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
                         />
                         <label htmlFor="isMortgaged" className="text-sm font-medium text-zinc-700 cursor-pointer">
-                          This property has a mortgage
+                          This {investmentType === InvestmentType.REAL_ESTATE ? 'property' : 'investment'} has a {getLabel(investmentType, 'mortgage').toLowerCase()}
                         </label>
                       </div>
                       
                       {isMortgaged && (
                         <div className="space-y-4 pl-8">
                           <div className="space-y-2">
-                            <label className="text-sm font-medium text-zinc-700">Total Mortgage Amount ($)</label>
+                            <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'loanAmount')} ($)</label>
                             <input 
                               type="number"
                               value={mortgageAmount}
@@ -675,7 +813,7 @@ export default function App() {
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-zinc-700">Term (Years)</label>
+                              <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'loanTerm')} (Years)</label>
                               <input 
                                 type="number"
                                 value={mortgageTerm}
@@ -685,7 +823,7 @@ export default function App() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-sm font-medium text-zinc-700">Monthly Payment ($)</label>
+                              <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'loanPayment')} ($)</label>
                               <input 
                                 type="number"
                                 value={mortgageMonthlyPayment}
@@ -700,7 +838,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-4">
-                      <label className="text-sm font-medium text-zinc-700">Amenities Included</label>
+                      <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'amenities')} Included</label>
                       <div className="flex flex-wrap gap-2">
                         {AMENITIES_OPTIONS.map(amenity => (
                           <button
@@ -723,7 +861,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-4">
-                      <label className="text-sm font-medium text-zinc-700">Utilities Included in Rent/Lot Rent</label>
+                      <label className="text-sm font-medium text-zinc-700">{getLabel(investmentType, 'utilities')} Included in {investmentType === InvestmentType.REAL_ESTATE ? 'Rent/Lot Rent' : 'Revenue'}</label>
                       <div className="flex flex-wrap gap-2">
                         {UTILITIES_OPTIONS.map(utility => (
                           <button
@@ -817,7 +955,7 @@ export default function App() {
                               <span className="text-xl font-bold text-zinc-900">{formatCurrency(portfolioStats.totalInvestment)}</span>
                             </div>
                             <div className="flex justify-between items-end">
-                              <span className="text-sm text-zinc-500">Properties</span>
+                              <span className="text-sm text-zinc-500">Investments</span>
                               <span className="text-xl font-bold text-zinc-900">{portfolioStats.propertyCount}</span>
                             </div>
                           </div>
@@ -827,13 +965,13 @@ export default function App() {
                       {/* Property Breakdown Table */}
                       <div className="glass-card overflow-hidden">
                         <div className="p-6 border-b border-zinc-100">
-                          <h3 className="font-bold text-zinc-900">Property Breakdown</h3>
+                          <h3 className="font-bold text-zinc-900">Investment Breakdown</h3>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left">
                             <thead className="bg-zinc-50 text-xs font-bold text-zinc-400 uppercase tracking-wider">
                               <tr>
-                                <th className="px-6 py-4">Address</th>
+                                <th className="px-6 py-4">Name/Location</th>
                                 <th className="px-6 py-4">Investment</th>
                                 <th className="px-6 py-4">Monthly Net</th>
                                 <th className="px-6 py-4">ROI</th>
@@ -907,7 +1045,7 @@ export default function App() {
                     <div className="glass-card p-6 bg-blue-50 border-blue-100">
                       <div className="flex items-center gap-2 text-blue-700 mb-2">
                         <Clock className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Recoup Time</span>
+                        <span className="text-xs font-bold uppercase tracking-wider">{getLabel(selectedProperty.type, 'recoup')}</span>
                       </div>
                       <div className="text-3xl font-bold text-blue-900">{breakdown.yearsToRecoup.toFixed(1)} <span className="text-lg font-medium">yrs</span></div>
                       <p className="text-xs text-blue-600 mt-1">Post-tax & growth adjusted</p>
@@ -948,15 +1086,15 @@ export default function App() {
                     
                     <div className="space-y-4">
                       <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-                        <span className="text-zinc-500">Property Address</span>
+                        <span className="text-zinc-500">{getLabel(selectedProperty.type, 'address')}</span>
                         <span className="font-medium text-zinc-900">{selectedProperty.address}</span>
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-                        <span className="text-zinc-500">Asking Price</span>
+                        <span className="text-zinc-500">{getLabel(selectedProperty.type, 'askingPrice')}</span>
                         <span className="font-medium text-zinc-900">{formatCurrency(selectedProperty.askingPrice)}</span>
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-zinc-100">
-                        <span className="text-zinc-500">Initial Repairs</span>
+                        <span className="text-zinc-500">{getLabel(selectedProperty.type, 'setup')}</span>
                         <span className="font-medium text-zinc-900">{formatCurrency(selectedProperty.initialRepairs)}</span>
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-zinc-100">
@@ -965,7 +1103,7 @@ export default function App() {
                       </div>
                       <div className="flex justify-between items-center py-3 border-b border-zinc-100">
                         <div className="flex flex-col">
-                          <span className="text-zinc-500">Monthly Rent (Year 1)</span>
+                          <span className="text-zinc-500">{getLabel(selectedProperty.type, 'revenue')}</span>
                           {activeRentOverride && (
                             <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">Override Active</span>
                           )}
@@ -977,7 +1115,7 @@ export default function App() {
 
                       <div className="py-4 bg-zinc-50 rounded-xl px-4 border border-zinc-100">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Rent Scenarios</span>
+                          <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{selectedProperty.type === InvestmentType.REAL_ESTATE ? 'Rent Scenarios' : 'Revenue Scenarios'}</span>
                           {activeRentOverride && (
                             <button 
                               onClick={() => setActiveRentOverride(null)}
@@ -1153,16 +1291,16 @@ export default function App() {
                   <div className="w-20 h-20 bg-zinc-100 rounded-full flex items-center justify-center mb-6">
                     <Calculator className="w-10 h-10 text-zinc-300" />
                   </div>
-                  <h2 className="text-xl font-bold text-zinc-900 mb-2">Select a property to analyze</h2>
+                  <h2 className="text-xl font-bold text-zinc-900 mb-2">Select an investment to analyze</h2>
                   <p className="text-zinc-500 max-w-xs">
-                    Choose a property from your portfolio or add a new one to see the full financial breakdown.
+                    Choose an investment from your portfolio or add a new one to see the full financial breakdown.
                   </p>
                   <button 
                     onClick={() => setIsAdding(true)}
                     className="mt-8 text-emerald-600 font-semibold flex items-center gap-2 hover:text-emerald-700"
                   >
                     <Plus className="w-4 h-4" />
-                    Add your first property
+                    Add your first investment
                   </button>
                 </div>
               )}
@@ -1170,6 +1308,18 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      <footer className="mt-12 pb-8 text-center">
+        <button 
+          onClick={() => setShowDisclaimer(true)}
+          className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors underline underline-offset-4"
+        >
+          Legal Disclaimer & Terms of Use
+        </button>
+        <p className="text-[10px] text-zinc-300 mt-2">
+          PropCalc • Vibe Coded with Precision
+        </p>
+      </footer>
 
       {/* Delete Confirmation Overlay */}
       <AnimatePresence>
@@ -1209,6 +1359,69 @@ export default function App() {
                   >
                     Cancel
                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Legal Disclaimer Modal */}
+      <AnimatePresence>
+        {showDisclaimer && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-zinc-900/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 md:p-12">
+                <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-8 mx-auto rotate-3">
+                  <ShieldCheck className="w-10 h-10 text-emerald-600" />
+                </div>
+                
+                <h2 className="text-3xl font-black text-zinc-900 text-center mb-6 tracking-tight">
+                  Legal Disclaimer
+                </h2>
+                
+                <div className="space-y-4 text-zinc-600 text-sm leading-relaxed max-h-[40vh] overflow-y-auto pr-4 custom-scrollbar">
+                  <p className="font-bold text-zinc-900">
+                    Please read this carefully before using PropCalc.
+                  </p>
+                  <p>
+                    PropCalc is a "vibe-coded" tool designed for quick, rough financial estimates. It is provided for informational and entertainment purposes only and does not constitute professional financial, legal, or tax advice.
+                  </p>
+                  <p>
+                    <span className="font-bold text-zinc-900">No Accuracy Guarantee:</span> The calculations provided are estimates based on user input and simplified financial models. Real-world results will vary significantly due to market conditions, unexpected expenses, tax law changes, and other variables.
+                  </p>
+                  <p>
+                    <span className="font-bold text-zinc-900">No Warranty:</span> This tool is provided "as is" without any warranties of any kind, express or implied. We do not guarantee that the tool will be error-free, accurate, or available at all times.
+                  </p>
+                  <p>
+                    <span className="font-bold text-zinc-900">Limitation of Liability:</span> By using this tool, you agree that the creators and providers of PropCalc shall not be liable for any direct, indirect, incidental, or consequential damages resulting from your use of or inability to use the tool, or from any investment decisions made based on its output.
+                  </p>
+                  <p>
+                    Always consult with a qualified financial advisor, CPA, and legal professional before making any significant investment decisions.
+                  </p>
+                </div>
+
+                <div className="mt-10">
+                  <button
+                    onClick={acceptDisclaimer}
+                    className="w-full py-5 bg-zinc-900 text-white font-bold rounded-2xl hover:bg-black transition-all shadow-xl shadow-zinc-200 active:scale-[0.98]"
+                  >
+                    I Understand & Accept
+                  </button>
+                  <p className="text-center text-[10px] text-zinc-400 mt-4 uppercase tracking-widest font-bold">
+                    By clicking, you agree to these terms
+                  </p>
                 </div>
               </div>
             </motion.div>
