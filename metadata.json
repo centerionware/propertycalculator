@@ -1,0 +1,5 @@
+{
+  "name": "PropCalc: Investment Property Analyzer",
+  "description": "A modern tool for real estate investors to calculate ROI, recoup time, and maintenance reserves with inflation adjustments.",
+  "requestFramePermissions": []
+}
